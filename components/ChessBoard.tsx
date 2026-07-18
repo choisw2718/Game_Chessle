@@ -62,6 +62,8 @@ export function ChessBoard({
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const draggedPieceRef = useRef<HTMLImageElement | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
   const suppressClick = useRef(false);
   const chess = useMemo(() => {
     if (fen) return new Chess(fen);
@@ -137,21 +139,36 @@ export function ChessBoard({
       active: false,
     };
     dragRef.current = nextDrag;
-    setDrag(nextDrag);
+  }
+
+  function scheduleDraggedPiecePosition() {
+    if (dragFrameRef.current !== null) return;
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      const currentDrag = dragRef.current;
+      const draggedPiece = draggedPieceRef.current;
+      if (!currentDrag?.active || !draggedPiece) return;
+      draggedPiece.style.transform = `translate3d(${currentDrag.clientX}px, ${currentDrag.clientY}px, 0) translate(-50%, -50%)`;
+    });
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
     const currentDrag = dragRef.current;
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
-    const moved = Math.hypot(event.clientX - currentDrag.startX, event.clientY - currentDrag.startY) >= DRAG_THRESHOLD;
+    const coalescedEvents = event.nativeEvent.getCoalescedEvents?.();
+    const latestEvent = coalescedEvents?.at(-1) ?? event.nativeEvent;
+    const moved = Math.hypot(latestEvent.clientX - currentDrag.startX, latestEvent.clientY - currentDrag.startY) >= DRAG_THRESHOLD;
     const active = currentDrag.active || moved;
     if (active) {
       event.preventDefault();
-      if (!currentDrag.active) setSelected(currentDrag.from);
     }
-    const nextDrag = { ...currentDrag, clientX: event.clientX, clientY: event.clientY, active };
+    const nextDrag = { ...currentDrag, clientX: latestEvent.clientX, clientY: latestEvent.clientY, active };
     dragRef.current = nextDrag;
-    setDrag(nextDrag);
+    if (!currentDrag.active && active) {
+      setSelected(currentDrag.from);
+      setDrag(nextDrag);
+    }
+    if (active) scheduleDraggedPiecePosition();
   }
 
   function finishDrag(event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) {
@@ -159,6 +176,10 @@ export function ChessBoard({
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     const active = currentDrag.active || Math.hypot(event.clientX - currentDrag.startX, event.clientY - currentDrag.startY) >= DRAG_THRESHOLD;
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
     dragRef.current = null;
     setDrag(null);
     if (!active) return;
@@ -220,12 +241,13 @@ export function ChessBoard({
       </div>
       {drag?.active && (
         <img
+          ref={draggedPieceRef}
           className="dragged-piece"
           src={pieceAsset(drag.color, drag.piece)}
           alt=""
           aria-hidden="true"
           draggable={false}
-          style={{ left: drag.clientX, top: drag.clientY }}
+          style={{ transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)` }}
         />
       )}
       {pendingPromotion && (
