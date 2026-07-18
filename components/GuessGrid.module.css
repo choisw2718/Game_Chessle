@@ -71,6 +71,21 @@
 .present { background: #f1b936; color: #211b0e; }
 .absent { background: #5e656c; }
 
+@media (max-width: 1080px) and (orientation: landscape) {
+  .guessRow {
+    min-width: 480px;
+    grid-template-columns: repeat(5, minmax(92px, 1fr));
+    gap: 4px;
+  }
+  .movePair {
+    min-width: 92px;
+    grid-template-columns: 18px repeat(2, minmax(34px, 1fr));
+    gap: 3px;
+  }
+  .moveTile { min-width: 34px; }
+  .moveTile strong { font-size: clamp(8px, 1vw, 12px); }
+}
+
 @media (max-width: 640px) and (orientation: portrait) {
   .guessGrid {
     height: auto;
