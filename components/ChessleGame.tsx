@@ -398,7 +398,6 @@ export function ChessleGame() {
             </div>
 
             <div className="attempt-column">
-              <GuessGrid game={game} />
               {!complete && (
                 <div className="guess-actions" aria-label="Move controls">
                   <button
@@ -424,6 +423,7 @@ export function ChessleGame() {
                   </button>
                 </div>
               )}
+              <GuessGrid game={game} />
             </div>
             <button
               className="new-random-problem"
