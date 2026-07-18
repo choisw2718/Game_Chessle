@@ -23,6 +23,10 @@
   gap: clamp(4px, 0.7vw, 10px);
 }
 
+.future {
+  display: grid;
+}
+
 .current {
   border-color: #687078;
   background: #181a1c;
@@ -67,15 +71,28 @@
 .present { background: #f1b936; color: #211b0e; }
 .absent { background: #5e656c; }
 
-@media (max-width: 540px) {
-  .guessGrid { height: auto; grid-template-rows: none; padding: 7px; }
+@media (max-width: 640px) and (orientation: portrait) {
+  .guessGrid {
+    height: auto;
+    grid-template-rows: none;
+    align-content: start;
+    padding: 7px;
+  }
   .guessRow {
     min-width: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 12px;
+    border-color: #2f3438;
+    background: #151719;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 8px;
   }
-  .movePair { min-width: 0; grid-template-columns: 20px repeat(2, minmax(40px, 1fr)); }
-  .moveNumber { font-size: 12px; }
-  .moveTile { height: 43px; }
-  .moveTile strong { font-size: 11px; }
+  .future { display: none; }
+  .current { border-color: #687078; background: #181a1c; }
+  .movePair {
+    min-width: 0;
+    grid-template-columns: 16px repeat(2, minmax(0, 1fr));
+    gap: 3px;
+  }
+  .moveNumber { font-size: 10px; }
+  .moveTile { min-width: 0; height: 40px; }
+  .moveTile strong { padding: 2px; font-size: 10px; text-overflow: clip; }
 }

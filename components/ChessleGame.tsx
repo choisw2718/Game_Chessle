@@ -59,8 +59,13 @@ function GuessGrid({ game }: { game: ActiveGame }) {
       {Array.from({ length: game.problem.maxAttempts }, (_, rowIndex) => {
         const finished = game.guesses[rowIndex];
         const current = rowIndex === game.guesses.length && game.status === "playing";
+        const future = !finished && !current;
         return (
-          <div className={`${gridStyles.guessRow}${current ? ` ${gridStyles.current}` : ""}`} key={rowIndex} aria-label={`Guess ${rowIndex + 1}`}>
+          <div
+            className={`${gridStyles.guessRow}${current ? ` ${gridStyles.current}` : ""}${future ? ` ${gridStyles.future}` : ""}`}
+            key={rowIndex}
+            aria-label={`Guess ${rowIndex + 1}`}
+          >
             {Array.from({ length: game.problem.plyCount / 2 }, (_, pairIndex) => {
               const whiteIndex = pairIndex * 2;
               const blackIndex = whiteIndex + 1;
