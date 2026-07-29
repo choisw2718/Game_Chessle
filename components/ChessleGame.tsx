@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import Link from "next/link";
 import { evaluateGuess } from "@/lib/chess/evaluate";
 import { replayUci } from "@/lib/chess/notation";
@@ -15,11 +22,26 @@ import {
   type ActiveGame,
   type StoredGuess,
 } from "@/lib/game/storage";
+import {
+  BOARD_THEME_OPTIONS,
+  DEFAULT_CUSTOM_BOARD_COLORS,
+  DEFAULT_BOARD_THEME,
+  customBoardCssVariables,
+  isCustomBoardColors,
+  loadCustomBoardColors,
+  loadBoardTheme,
+  saveCustomBoardColors,
+  saveBoardTheme,
+  type BoardThemeId,
+  type CustomBoardColors,
+} from "@/lib/game/board-theme";
 import { findLongestCorrectPrefix } from "@/lib/game/correct-prefix";
 import { getDataset, getEnabledProblems, getProblem, revealProblem } from "@/lib/problems";
 import type { PublicProblem, RevealedProblem } from "@/lib/types";
 import { ChessBoard } from "./ChessBoard";
 import gridStyles from "./GuessGrid.module.css";
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 function localDateKey() {
   return new Date().toISOString().slice(0, 10);
@@ -130,7 +152,163 @@ function StatsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ResultPanel({ game }: { game: ActiveGame }) {
+function ThemePreview({
+  theme,
+  customColors,
+}: {
+  theme: BoardThemeId;
+  customColors?: CustomBoardColors;
+}) {
+  const previewStyle = {
+    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
+    "--preview-white-url": `url("${BASE_PATH}/pieces/wN.svg")`,
+    "--preview-black-url": `url("${BASE_PATH}/pieces/bK.svg")`,
+    ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
+  } as CSSProperties;
+
+  return (
+    <span className={`theme-preview board-theme-${theme}`} style={previewStyle} aria-hidden="true">
+      {Array.from({ length: 16 }, (_, index) => (
+        <i
+          className={`theme-preview-square ${(Math.floor(index / 4) + index) % 2 === 0 ? "is-light" : "is-dark"}`}
+          key={index}
+        />
+      ))}
+      {theme === "red-tournament" ? (
+        <>
+          <span className="theme-preview-piece preview-white piece-sprite sprite-w-n" />
+          <span className="theme-preview-piece preview-black piece-sprite sprite-b-k" />
+        </>
+      ) : (
+        <>
+          <span className="theme-preview-piece preview-white preview-classic-white" />
+          <span className="theme-preview-piece preview-black preview-classic-black" />
+        </>
+      )}
+    </span>
+  );
+}
+
+function BoardThemeDialog({
+  selected,
+  customColors,
+  onSelect,
+  onCreateCustom,
+  onClose,
+}: {
+  selected: BoardThemeId;
+  customColors: CustomBoardColors;
+  onSelect: (theme: BoardThemeId) => void;
+  onCreateCustom: (colors: CustomBoardColors) => void;
+  onClose: () => void;
+}) {
+  const [draftColors, setDraftColors] = useState(customColors);
+  const customColorsValid = isCustomBoardColors(draftColors);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop theme-modal-backdrop" role="presentation" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="modal-card theme-card" role="dialog" aria-modal="true" aria-labelledby="theme-title">
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
+        <p className="eyebrow">APPEARANCE</p>
+        <h2 id="theme-title">Board &amp; Pieces</h2>
+        <p className="theme-intro">Choose a complete board-and-piece set. Your choice stays on this device.</p>
+        <div className="theme-options">
+          {BOARD_THEME_OPTIONS.map((theme) => {
+            const active = selected === theme.id;
+            return (
+              <button
+                className={`theme-option${active ? " is-selected" : ""}`}
+                type="button"
+                key={theme.id}
+                onClick={() => onSelect(theme.id)}
+                aria-pressed={active}
+              >
+                <ThemePreview theme={theme.id} />
+                <span className="theme-option-copy">
+                  <strong>{theme.name}</strong>
+                  <small>{theme.description}</small>
+                </span>
+                <span className="theme-option-check" aria-hidden="true">{active ? "✓" : "→"}</span>
+              </button>
+            );
+          })}
+        </div>
+        <section className={`custom-theme-builder${selected === "custom" ? " is-selected" : ""}`} aria-labelledby="custom-theme-title">
+          <ThemePreview theme="custom" customColors={draftColors} />
+          <div className="custom-theme-content">
+            <div>
+              <p className="eyebrow">MAKE YOUR OWN</p>
+              <h3 id="custom-theme-title">My Checkerboard</h3>
+              <p>Every square alternates between Color 1 and Color 2.</p>
+            </div>
+            <div className="custom-color-controls">
+              <label>
+                <span>Color 1</span>
+                <span className="custom-color-input">
+                  <input
+                    type="color"
+                    value={draftColors.colorOne}
+                    onChange={(event) => setDraftColors((current) => ({ ...current, colorOne: event.target.value }))}
+                    aria-label="Choose checkerboard color 1"
+                  />
+                  <strong>{draftColors.colorOne.toUpperCase()}</strong>
+                </span>
+              </label>
+              <label>
+                <span>Color 2</span>
+                <span className="custom-color-input">
+                  <input
+                    type="color"
+                    value={draftColors.colorTwo}
+                    onChange={(event) => setDraftColors((current) => ({ ...current, colorTwo: event.target.value }))}
+                    aria-label="Choose checkerboard color 2"
+                  />
+                  <strong>{draftColors.colorTwo.toUpperCase()}</strong>
+                </span>
+              </label>
+            </div>
+            <div className="custom-theme-actions">
+              <button
+                className="custom-color-swap"
+                type="button"
+                onClick={() => setDraftColors({ colorOne: draftColors.colorTwo, colorTwo: draftColors.colorOne })}
+              >
+                Swap colors
+              </button>
+              <button
+                className="custom-theme-apply"
+                type="button"
+                disabled={!customColorsValid}
+                onClick={() => customColorsValid && onCreateCustom(draftColors)}
+              >
+                Use this board
+              </button>
+            </div>
+            {!customColorsValid && <p className="custom-color-error" role="alert">Choose two different colors.</p>}
+          </div>
+        </section>
+      </section>
+    </div>
+  );
+}
+
+function ResultPanel({
+  game,
+  boardTheme,
+  customBoardColors,
+}: {
+  game: ActiveGame;
+  boardTheme: BoardThemeId;
+  customBoardColors: CustomBoardColors;
+}) {
   const reveal = game.reveal as RevealedProblem;
   return (
     <section className="result-panel" aria-live="polite">
@@ -150,7 +328,13 @@ function ResultPanel({ game }: { game: ActiveGame }) {
       </div>
       <div className="terminal-board">
         <p className="eyebrow">FINAL POSITION</p>
-        <ChessBoard fen={reveal.terminalFen} compact label="Answer position" />
+        <ChessBoard
+          fen={reveal.terminalFen}
+          compact
+          label="Answer position"
+          theme={boardTheme}
+          customColors={customBoardColors}
+        />
       </div>
     </section>
   );
@@ -201,6 +385,9 @@ export function ChessleGame() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [boardTheme, setBoardTheme] = useState<BoardThemeId>(DEFAULT_BOARD_THEME);
+  const [customBoardColors, setCustomBoardColors] = useState<CustomBoardColors>(DEFAULT_CUSTOM_BOARD_COLORS);
   const [toast, setToast] = useState<string | null>(null);
   const [dismissedResultPlayId, setDismissedResultPlayId] = useState<string | null>(null);
   const skipNextModeLoad = useRef(false);
@@ -258,10 +445,36 @@ export function ChessleGame() {
     void startProblem(mode);
   }, [mode, startProblem]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCustomBoardColors(loadCustomBoardColors());
+      setBoardTheme(loadBoardTheme());
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   function startRandomProblem() {
     if (mode !== "random") skipNextModeLoad.current = true;
     setMode("random");
     void startProblem("random", true);
+  }
+
+  function chooseBoardTheme(theme: BoardThemeId) {
+    setBoardTheme(theme);
+    const saved = saveBoardTheme(theme);
+    setShowThemePicker(false);
+    const name = BOARD_THEME_OPTIONS.find((option) => option.id === theme)?.name ?? "Board style";
+    setToast(saved ? `${name} saved on this device` : `${name} selected for this session`);
+    window.setTimeout(() => setToast(null), 1800);
+  }
+
+  function createCustomBoard(colors: CustomBoardColors) {
+    setCustomBoardColors(colors);
+    setBoardTheme("custom");
+    const saved = saveCustomBoardColors(colors) && saveBoardTheme("custom");
+    setShowThemePicker(false);
+    setToast(saved ? "Custom checkerboard saved on this device" : "Custom checkerboard selected for this session");
+    window.setTimeout(() => setToast(null), 1800);
   }
 
   const position = useMemo(() => {
@@ -384,6 +597,21 @@ export function ChessleGame() {
               <div>
                 <span className="mode-chip">{game.problem.mode === "daily" ? "DAILY" : "PRACTICE"}</span>
                 <strong>#{game.problem.sequenceNumber}</strong>
+                <button
+                  className="theme-picker-trigger"
+                  type="button"
+                  onClick={() => setShowThemePicker(true)}
+                  aria-haspopup="dialog"
+                >
+                  <span
+                    className={`theme-trigger-swatch board-theme-${boardTheme}`}
+                    style={boardTheme === "custom" ? customBoardCssVariables(customBoardColors) as CSSProperties : undefined}
+                    aria-hidden="true"
+                  >
+                    <i /><i /><i /><i />
+                  </span>
+                  Style
+                </button>
               </div>
               <p>{complete ? "Finished" : `${currentTurn} to move${position?.isCheck() ? " · Check" : ""}`}</p>
             </div>
@@ -394,6 +622,8 @@ export function ChessleGame() {
                 disabled={submitting || currentCount >= game.problem.plyCount}
                 onMove={handleMove}
                 label="Move input board"
+                theme={boardTheme}
+                customColors={customBoardColors}
               />
             </div>
 
@@ -435,11 +665,26 @@ export function ChessleGame() {
             </button>
           </section>
 
-          {complete && game.reveal && <ResultPanel game={game} />}
+          {complete && game.reveal && (
+            <ResultPanel
+              game={game}
+              boardTheme={boardTheme}
+              customBoardColors={customBoardColors}
+            />
+          )}
         </>
       )}
 
       {showStats && <StatsDialog onClose={() => setShowStats(false)} />}
+      {showThemePicker && (
+        <BoardThemeDialog
+          selected={boardTheme}
+          customColors={customBoardColors}
+          onSelect={chooseBoardTheme}
+          onCreateCustom={createCustomBoard}
+          onClose={() => setShowThemePicker(false)}
+        />
+      )}
       {game && complete && game.reveal && dismissedResultPlayId !== game.playId && (
         <GameResultDialog
           game={game}

@@ -1,8 +1,19 @@
 "use client";
 
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { moveToUci, replayUci } from "@/lib/chess/notation";
+import {
+  customBoardCssVariables,
+  type BoardThemeId,
+  type CustomBoardColors,
+} from "@/lib/game/board-theme";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 const RANKS = [8, 7, 6, 5, 4, 3, 2, 1] as const;
@@ -20,6 +31,37 @@ function pieceAsset(color: Color, piece: PieceSymbol) {
   return `${BASE_PATH}/pieces/${color}${piece.toUpperCase()}.svg`;
 }
 
+function PieceGraphic({
+  theme,
+  color,
+  piece,
+  className,
+}: {
+  theme: BoardThemeId;
+  color: Color;
+  piece: PieceSymbol;
+  className: string;
+}) {
+  if (theme === "red-tournament") {
+    return (
+      <span
+        className={`${className} piece-sprite sprite-${color}-${piece}`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <img
+      className={className}
+      src={pieceAsset(color, piece)}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
+}
+
 interface ChessBoardProps {
   movesUci?: readonly string[];
   fen?: string;
@@ -28,6 +70,8 @@ interface ChessBoardProps {
   onMove?: (move: { uci: string; san: string }) => void;
   label?: string;
   compact?: boolean;
+  theme?: BoardThemeId;
+  customColors?: CustomBoardColors;
 }
 
 interface PendingPromotion {
@@ -57,12 +101,14 @@ export function ChessBoard({
   onMove,
   label = "Chess position",
   compact = false,
+  theme = "forest-classic",
+  customColors,
 }: ChessBoardProps) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  const draggedPieceRef = useRef<HTMLImageElement | null>(null);
+  const draggedPieceRef = useRef<HTMLElement | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const suppressClick = useRef(false);
   const chess = useMemo(() => {
@@ -196,8 +242,16 @@ export function ChessBoard({
     else setSelected(null);
   }
 
+  const boardStyle = {
+    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
+    ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
+  } as CSSProperties;
+
   return (
-    <div className={`board-wrap${compact ? " board-wrap--compact" : ""}`}>
+    <div
+      className={`board-wrap board-theme-${theme}${compact ? " board-wrap--compact" : ""}`}
+      style={boardStyle}
+    >
       <div className={`chess-board${interactive ? " is-interactive" : ""}${drag?.active ? " is-dragging" : ""}`} role="grid" aria-label={label} data-testid="chess-board">
         {RANKS.flatMap((rank, rankIndex) =>
           FILES.map((file, fileIndex) => {
@@ -227,11 +281,11 @@ export function ChessBoard({
                 {rankIndex === 7 && <span className="coord coord-file">{file}</span>}
                 {target !== undefined && <span className={target ? "legal-capture" : "legal-dot"} />}
                 {piece && (
-                  <img
+                  <PieceGraphic
+                    theme={theme}
+                    color={piece.color}
+                    piece={piece.type}
                     className={`piece piece-${piece.color}${drag?.active && drag.from === square ? " is-drag-source" : ""}`}
-                    src={pieceAsset(piece.color, piece.type)}
-                    alt=""
-                    draggable={false}
                   />
                 )}
               </button>
@@ -240,23 +294,42 @@ export function ChessBoard({
         )}
       </div>
       {drag?.active && (
-        <img
-          ref={draggedPieceRef}
-          className="dragged-piece"
-          src={pieceAsset(drag.color, drag.piece)}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          style={{ transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)` }}
-        />
+        theme === "red-tournament" ? (
+          <span
+            ref={draggedPieceRef}
+            className={`dragged-piece piece-sprite sprite-${drag.color}-${drag.piece}`}
+            aria-hidden="true"
+            style={{ transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)` }}
+          />
+        ) : (
+          <img
+            ref={(node) => { draggedPieceRef.current = node; }}
+            className="dragged-piece"
+            src={pieceAsset(drag.color, drag.piece)}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            style={{ transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)` }}
+          />
+        )
       )}
       {pendingPromotion && (
         <div className="promotion-picker" role="dialog" aria-label="Choose a promotion piece">
           <span>Promote to</span>
           <div>
             {(["q", "r", "b", "n"] as const).map((piece) => (
-              <button key={piece} type="button" onClick={() => commitMove(pendingPromotion.from, pendingPromotion.to, piece)}>
-                <img src={pieceAsset(chess.turn(), piece)} alt={PIECE_NAMES[piece]} draggable={false} />
+              <button
+                key={piece}
+                type="button"
+                aria-label={PIECE_NAMES[piece]}
+                onClick={() => commitMove(pendingPromotion.from, pendingPromotion.to, piece)}
+              >
+                <PieceGraphic
+                  theme={theme}
+                  color={chess.turn()}
+                  piece={piece}
+                  className="promotion-piece"
+                />
               </button>
             ))}
           </div>
