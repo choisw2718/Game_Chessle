@@ -1,5 +1,6 @@
 export const BOARD_THEME_STORAGE_KEY = "chessle-expert:board-theme:v1";
 export const CUSTOM_BOARD_COLORS_STORAGE_KEY = "chessle-expert:custom-board-colors:v1";
+export const CUSTOM_PIECE_STYLE_STORAGE_KEY = "chessle-expert:custom-piece-style:v1";
 
 export const BOARD_THEME_OPTIONS = [
   {
@@ -21,6 +22,7 @@ export const BOARD_THEME_OPTIONS = [
 
 export type PresetBoardThemeId = (typeof BOARD_THEME_OPTIONS)[number]["id"];
 export type BoardThemeId = PresetBoardThemeId | "custom";
+export type PieceStyleId = "classic" | "tournament";
 
 export interface CustomBoardColors {
   colorOne: string;
@@ -37,9 +39,14 @@ export const DEFAULT_CUSTOM_BOARD_COLORS: CustomBoardColors = {
   colorOne: "#f0d9b5",
   colorTwo: "#b58863",
 };
+export const DEFAULT_CUSTOM_PIECE_STYLE: PieceStyleId = "classic";
 
 export function isBoardThemeId(value: unknown): value is BoardThemeId {
   return value === "custom" || BOARD_THEME_OPTIONS.some((theme) => theme.id === value);
+}
+
+export function isPieceStyleId(value: unknown): value is PieceStyleId {
+  return value === "classic" || value === "tournament";
 }
 
 export function isHexColor(value: unknown): value is string {
@@ -118,6 +125,31 @@ export function saveCustomBoardColors(
   if (!storage || !isCustomBoardColors(colors)) return false;
   try {
     storage.setItem(CUSTOM_BOARD_COLORS_STORAGE_KEY, JSON.stringify(colors));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadCustomPieceStyle(
+  storage: ThemeStorageLike | null = getBrowserStorage(),
+): PieceStyleId {
+  if (!storage) return DEFAULT_CUSTOM_PIECE_STYLE;
+  try {
+    const saved = storage.getItem(CUSTOM_PIECE_STYLE_STORAGE_KEY);
+    return isPieceStyleId(saved) ? saved : DEFAULT_CUSTOM_PIECE_STYLE;
+  } catch {
+    return DEFAULT_CUSTOM_PIECE_STYLE;
+  }
+}
+
+export function saveCustomPieceStyle(
+  pieceStyle: PieceStyleId,
+  storage: ThemeStorageLike | null = getBrowserStorage(),
+) {
+  if (!storage || !isPieceStyleId(pieceStyle)) return false;
+  try {
+    storage.setItem(CUSTOM_PIECE_STYLE_STORAGE_KEY, pieceStyle);
     return true;
   } catch {
     return false;

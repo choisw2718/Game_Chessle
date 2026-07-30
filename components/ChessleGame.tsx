@@ -25,16 +25,24 @@ import {
 import {
   BOARD_THEME_OPTIONS,
   DEFAULT_CUSTOM_BOARD_COLORS,
+  DEFAULT_CUSTOM_PIECE_STYLE,
   DEFAULT_BOARD_THEME,
   customBoardCssVariables,
   isCustomBoardColors,
   loadCustomBoardColors,
+  loadCustomPieceStyle,
   loadBoardTheme,
   saveCustomBoardColors,
+  saveCustomPieceStyle,
   saveBoardTheme,
   type BoardThemeId,
   type CustomBoardColors,
+  type PieceStyleId,
 } from "@/lib/game/board-theme";
+import {
+  recordDailyResultAndLoadPeerStats,
+  type DailyPeerStats,
+} from "@/lib/analytics/client";
 import { findLongestCorrectPrefix } from "@/lib/game/correct-prefix";
 import { getDataset, getEnabledProblems, getProblem, revealProblem } from "@/lib/problems";
 import type { PublicProblem, RevealedProblem } from "@/lib/types";
@@ -155,9 +163,11 @@ function StatsDialog({ onClose }: { onClose: () => void }) {
 function ThemePreview({
   theme,
   customColors,
+  pieceStyle,
 }: {
   theme: BoardThemeId;
   customColors?: CustomBoardColors;
+  pieceStyle?: PieceStyleId;
 }) {
   const previewStyle = {
     "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
@@ -165,6 +175,11 @@ function ThemePreview({
     "--preview-black-url": `url("${BASE_PATH}/pieces/bK.svg")`,
     ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
   } as CSSProperties;
+  const previewPieceStyle: PieceStyleId = theme === "red-tournament"
+    ? "tournament"
+    : theme === "custom"
+      ? pieceStyle ?? DEFAULT_CUSTOM_PIECE_STYLE
+      : "classic";
 
   return (
     <span className={`theme-preview board-theme-${theme}`} style={previewStyle} aria-hidden="true">
@@ -174,7 +189,7 @@ function ThemePreview({
           key={index}
         />
       ))}
-      {theme === "red-tournament" ? (
+      {previewPieceStyle === "tournament" ? (
         <>
           <span className="theme-preview-piece preview-white piece-sprite sprite-w-n" />
           <span className="theme-preview-piece preview-black piece-sprite sprite-b-k" />
@@ -189,20 +204,42 @@ function ThemePreview({
   );
 }
 
+function PieceStyleSample({ pieceStyle }: { pieceStyle: PieceStyleId }) {
+  const sampleStyle = {
+    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
+    "--preview-white-url": `url("${BASE_PATH}/pieces/wN.svg")`,
+  } as CSSProperties;
+
+  return (
+    <span className="piece-style-sample" style={sampleStyle} aria-hidden="true">
+      <span
+        className={`piece-style-sample-piece ${
+          pieceStyle === "tournament"
+            ? "piece-sprite sprite-w-n"
+            : "preview-classic-white"
+        }`}
+      />
+    </span>
+  );
+}
+
 function BoardThemeDialog({
   selected,
   customColors,
+  customPieceStyle,
   onSelect,
   onCreateCustom,
   onClose,
 }: {
   selected: BoardThemeId;
   customColors: CustomBoardColors;
+  customPieceStyle: PieceStyleId;
   onSelect: (theme: BoardThemeId) => void;
-  onCreateCustom: (colors: CustomBoardColors) => void;
+  onCreateCustom: (colors: CustomBoardColors, pieceStyle: PieceStyleId) => void;
   onClose: () => void;
 }) {
   const [draftColors, setDraftColors] = useState(customColors);
+  const [draftPieceStyle, setDraftPieceStyle] = useState(customPieceStyle);
   const customColorsValid = isCustomBoardColors(draftColors);
 
   useEffect(() => {
@@ -242,7 +279,7 @@ function BoardThemeDialog({
           })}
         </div>
         <section className={`custom-theme-builder${selected === "custom" ? " is-selected" : ""}`} aria-labelledby="custom-theme-title">
-          <ThemePreview theme="custom" customColors={draftColors} />
+          <ThemePreview theme="custom" customColors={draftColors} pieceStyle={draftPieceStyle} />
           <div className="custom-theme-content">
             <div>
               <p className="eyebrow">MAKE YOUR OWN</p>
@@ -275,6 +312,29 @@ function BoardThemeDialog({
                 </span>
               </label>
             </div>
+            <fieldset className="custom-piece-picker">
+              <legend>Piece design</legend>
+              <div>
+                {([
+                  { id: "classic", name: "Classic", description: "Crisp outline pieces" },
+                  { id: "tournament", name: "Tournament", description: "Bold retro pieces" },
+                ] as const).map((option) => (
+                  <button
+                    className={draftPieceStyle === option.id ? "is-selected" : ""}
+                    type="button"
+                    key={option.id}
+                    onClick={() => setDraftPieceStyle(option.id)}
+                    aria-pressed={draftPieceStyle === option.id}
+                  >
+                    <PieceStyleSample pieceStyle={option.id} />
+                    <span>
+                      <strong>{option.name}</strong>
+                      <small>{option.description}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
             <div className="custom-theme-actions">
               <button
                 className="custom-color-swap"
@@ -287,7 +347,7 @@ function BoardThemeDialog({
                 className="custom-theme-apply"
                 type="button"
                 disabled={!customColorsValid}
-                onClick={() => customColorsValid && onCreateCustom(draftColors)}
+                onClick={() => customColorsValid && onCreateCustom(draftColors, draftPieceStyle)}
               >
                 Use this board
               </button>
@@ -304,10 +364,12 @@ function ResultPanel({
   game,
   boardTheme,
   customBoardColors,
+  customPieceStyle,
 }: {
   game: ActiveGame;
   boardTheme: BoardThemeId;
   customBoardColors: CustomBoardColors;
+  customPieceStyle: PieceStyleId;
 }) {
   const reveal = game.reveal as RevealedProblem;
   return (
@@ -334,6 +396,7 @@ function ResultPanel({
           label="Answer position"
           theme={boardTheme}
           customColors={customBoardColors}
+          customPieceStyle={customPieceStyle}
         />
       </div>
     </section>
@@ -342,10 +405,16 @@ function ResultPanel({
 
 function GameResultDialog({
   game,
+  dailyPeerStatus,
   onClose,
   onRandom,
 }: {
   game: ActiveGame;
+  dailyPeerStatus: {
+    playId: string;
+    state: "loading" | "ready" | "unavailable";
+    stats: DailyPeerStats | null;
+  } | null;
   onClose: () => void;
   onRandom: () => void;
 }) {
@@ -370,6 +439,38 @@ function GameResultDialog({
         <p className={`result-dialog-outcome ${won ? "is-correct" : "is-incorrect"}`}>{won ? "Correct" : "Incorrect"}</p>
         <h2 id="game-result-title">{reveal.fullName}</h2>
         <p id="game-result-line" className="result-dialog-meta">{reveal.eco}</p>
+        {game.problem.mode === "daily" && (
+          <section className="daily-peer-status" aria-label="Other players' Daily statistics">
+            <p>OTHER PLAYERS TODAY</p>
+            {(!dailyPeerStatus || dailyPeerStatus.playId !== game.playId || dailyPeerStatus.state === "loading") && (
+              <div className="daily-peer-message" role="status">Loading community stats…</div>
+            )}
+            {dailyPeerStatus?.playId === game.playId && dailyPeerStatus.state === "unavailable" && (
+              <div className="daily-peer-message">Community stats are temporarily unavailable.</div>
+            )}
+            {dailyPeerStatus?.playId === game.playId && dailyPeerStatus.state === "ready" && dailyPeerStatus.stats && (
+              dailyPeerStatus.stats.completedPlayers ? (
+                <>
+                  <div className="daily-peer-grid">
+                    <div>
+                      <strong>{dailyPeerStatus.stats.averageAttempts?.toFixed(1) ?? "—"}</strong>
+                      <span>Avg. tries to solve</span>
+                    </div>
+                    <div>
+                      <strong>{dailyPeerStatus.stats.solveRate}%</strong>
+                      <span>Solve rate</span>
+                    </div>
+                  </div>
+                  <small>
+                    Based on {dailyPeerStatus.stats.completedPlayers.toLocaleString()} other completed {dailyPeerStatus.stats.completedPlayers === 1 ? "player" : "players"}.
+                  </small>
+                </>
+              ) : (
+                <div className="daily-peer-message">You are the first completed player today.</div>
+              )
+            )}
+          </section>
+        )}
         <div className="result-dialog-actions">
           <button className="button button-primary" type="button" onClick={onRandom}>New Random</button>
         </div>
@@ -388,9 +489,16 @@ export function ChessleGame() {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [boardTheme, setBoardTheme] = useState<BoardThemeId>(DEFAULT_BOARD_THEME);
   const [customBoardColors, setCustomBoardColors] = useState<CustomBoardColors>(DEFAULT_CUSTOM_BOARD_COLORS);
+  const [customPieceStyle, setCustomPieceStyle] = useState<PieceStyleId>(DEFAULT_CUSTOM_PIECE_STYLE);
   const [toast, setToast] = useState<string | null>(null);
   const [dismissedResultPlayId, setDismissedResultPlayId] = useState<string | null>(null);
+  const [dailyPeerStatus, setDailyPeerStatus] = useState<{
+    playId: string;
+    state: "loading" | "ready" | "unavailable";
+    stats: DailyPeerStats | null;
+  } | null>(null);
   const skipNextModeLoad = useRef(false);
+  const loadedDailyPeerKey = useRef<string | null>(null);
 
   const startProblem = useCallback(async (targetMode: PublicProblem["mode"], forceNew = false) => {
     setLoading(true);
@@ -448,10 +556,42 @@ export function ChessleGame() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setCustomBoardColors(loadCustomBoardColors());
+      setCustomPieceStyle(loadCustomPieceStyle());
       setBoardTheme(loadBoardTheme());
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!game || game.problem.mode !== "daily" || game.status === "playing") return;
+    const requestKey = `${game.playId}:${game.status}:${game.guesses.length}`;
+    if (loadedDailyPeerKey.current === requestKey) return;
+    loadedDailyPeerKey.current = requestKey;
+
+    let cancelled = false;
+    setDailyPeerStatus({ playId: game.playId, state: "loading", stats: null });
+    void recordDailyResultAndLoadPeerStats({
+      problemId: game.problem.id,
+      dateKey: game.problem.dateKey,
+      outcome: game.status,
+      attempts: game.guesses.length,
+    }).then((stats) => {
+      if (cancelled) return;
+      setDailyPeerStatus({
+        playId: game.playId,
+        state: stats ? "ready" : "unavailable",
+        stats,
+      });
+    }).catch(() => {
+      if (!cancelled) {
+        setDailyPeerStatus({ playId: game.playId, state: "unavailable", stats: null });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [game]);
 
   function startRandomProblem() {
     if (mode !== "random") skipNextModeLoad.current = true;
@@ -468,12 +608,16 @@ export function ChessleGame() {
     window.setTimeout(() => setToast(null), 1800);
   }
 
-  function createCustomBoard(colors: CustomBoardColors) {
+  function createCustomBoard(colors: CustomBoardColors, pieceStyle: PieceStyleId) {
     setCustomBoardColors(colors);
+    setCustomPieceStyle(pieceStyle);
     setBoardTheme("custom");
-    const saved = saveCustomBoardColors(colors) && saveBoardTheme("custom");
+    const colorsSaved = saveCustomBoardColors(colors);
+    const piecesSaved = saveCustomPieceStyle(pieceStyle);
+    const themeSaved = saveBoardTheme("custom");
+    const saved = colorsSaved && piecesSaved && themeSaved;
     setShowThemePicker(false);
-    setToast(saved ? "Custom checkerboard saved on this device" : "Custom checkerboard selected for this session");
+    setToast(saved ? "Custom board and pieces saved on this device" : "Custom board and pieces selected for this session");
     window.setTimeout(() => setToast(null), 1800);
   }
 
@@ -624,6 +768,7 @@ export function ChessleGame() {
                 label="Move input board"
                 theme={boardTheme}
                 customColors={customBoardColors}
+                customPieceStyle={customPieceStyle}
               />
             </div>
 
@@ -670,6 +815,7 @@ export function ChessleGame() {
               game={game}
               boardTheme={boardTheme}
               customBoardColors={customBoardColors}
+              customPieceStyle={customPieceStyle}
             />
           )}
         </>
@@ -680,6 +826,7 @@ export function ChessleGame() {
         <BoardThemeDialog
           selected={boardTheme}
           customColors={customBoardColors}
+          customPieceStyle={customPieceStyle}
           onSelect={chooseBoardTheme}
           onCreateCustom={createCustomBoard}
           onClose={() => setShowThemePicker(false)}
@@ -688,6 +835,7 @@ export function ChessleGame() {
       {game && complete && game.reveal && dismissedResultPlayId !== game.playId && (
         <GameResultDialog
           game={game}
+          dailyPeerStatus={dailyPeerStatus}
           onClose={() => setDismissedResultPlayId(game.playId)}
           onRandom={startRandomProblem}
         />

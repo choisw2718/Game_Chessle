@@ -3,12 +3,16 @@ import test from "node:test";
 import {
   BOARD_THEME_STORAGE_KEY,
   CUSTOM_BOARD_COLORS_STORAGE_KEY,
+  CUSTOM_PIECE_STYLE_STORAGE_KEY,
   DEFAULT_CUSTOM_BOARD_COLORS,
+  DEFAULT_CUSTOM_PIECE_STYLE,
   DEFAULT_BOARD_THEME,
   customBoardCssVariables,
   loadCustomBoardColors,
+  loadCustomPieceStyle,
   loadBoardTheme,
   saveCustomBoardColors,
+  saveCustomPieceStyle,
   saveBoardTheme,
   type ThemeStorageLike,
 } from "../lib/game/board-theme";
@@ -52,6 +56,20 @@ test("keeps two different custom checker colors on this device", () => {
   });
 });
 
+test("keeps the custom piece design on this device", () => {
+  const storage = new MemoryStorage();
+
+  assert.equal(saveCustomPieceStyle("tournament", storage), true);
+  assert.equal(loadCustomPieceStyle(storage), "tournament");
+});
+
+test("uses classic pieces for existing custom boards without a saved piece design", () => {
+  const storage = new MemoryStorage();
+
+  assert.equal(loadCustomPieceStyle(storage), DEFAULT_CUSTOM_PIECE_STYLE);
+  assert.equal(DEFAULT_CUSTOM_PIECE_STYLE, "classic");
+});
+
 test("does not accept identical colors because the checker pattern would disappear", () => {
   const storage = new MemoryStorage();
 
@@ -74,6 +92,13 @@ test("ignores unknown saved theme values", () => {
   storage.setItem(BOARD_THEME_STORAGE_KEY, "not-a-theme");
 
   assert.equal(loadBoardTheme(storage), DEFAULT_BOARD_THEME);
+});
+
+test("ignores an unknown saved custom piece design", () => {
+  const storage = new MemoryStorage();
+  storage.setItem(CUSTOM_PIECE_STYLE_STORAGE_KEY, "glass");
+
+  assert.equal(loadCustomPieceStyle(storage), DEFAULT_CUSTOM_PIECE_STYLE);
 });
 
 test("still allows an in-session theme when local storage is unavailable", () => {

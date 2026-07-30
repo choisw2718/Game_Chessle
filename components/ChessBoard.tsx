@@ -13,6 +13,7 @@ import {
   customBoardCssVariables,
   type BoardThemeId,
   type CustomBoardColors,
+  type PieceStyleId,
 } from "@/lib/game/board-theme";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
@@ -32,17 +33,17 @@ function pieceAsset(color: Color, piece: PieceSymbol) {
 }
 
 function PieceGraphic({
-  theme,
+  pieceStyle,
   color,
   piece,
   className,
 }: {
-  theme: BoardThemeId;
+  pieceStyle: PieceStyleId;
   color: Color;
   piece: PieceSymbol;
   className: string;
 }) {
-  if (theme === "red-tournament") {
+  if (pieceStyle === "tournament") {
     return (
       <span
         className={`${className} piece-sprite sprite-${color}-${piece}`}
@@ -72,6 +73,7 @@ interface ChessBoardProps {
   compact?: boolean;
   theme?: BoardThemeId;
   customColors?: CustomBoardColors;
+  customPieceStyle?: PieceStyleId;
 }
 
 interface PendingPromotion {
@@ -103,6 +105,7 @@ export function ChessBoard({
   compact = false,
   theme = "forest-classic",
   customColors,
+  customPieceStyle = "classic",
 }: ChessBoardProps) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
@@ -246,10 +249,15 @@ export function ChessBoard({
     "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
     ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
   } as CSSProperties;
+  const pieceStyle: PieceStyleId = theme === "red-tournament"
+    ? "tournament"
+    : theme === "custom"
+      ? customPieceStyle
+      : "classic";
 
   return (
     <div
-      className={`board-wrap board-theme-${theme}${compact ? " board-wrap--compact" : ""}`}
+      className={`board-wrap board-theme-${theme} piece-style-${pieceStyle}${compact ? " board-wrap--compact" : ""}`}
       style={boardStyle}
     >
       <div className={`chess-board${interactive ? " is-interactive" : ""}${drag?.active ? " is-dragging" : ""}`} role="grid" aria-label={label} data-testid="chess-board">
@@ -282,7 +290,7 @@ export function ChessBoard({
                 {target !== undefined && <span className={target ? "legal-capture" : "legal-dot"} />}
                 {piece && (
                   <PieceGraphic
-                    theme={theme}
+                    pieceStyle={pieceStyle}
                     color={piece.color}
                     piece={piece.type}
                     className={`piece piece-${piece.color}${drag?.active && drag.from === square ? " is-drag-source" : ""}`}
@@ -294,7 +302,7 @@ export function ChessBoard({
         )}
       </div>
       {drag?.active && (
-        theme === "red-tournament" ? (
+        pieceStyle === "tournament" ? (
           <span
             ref={draggedPieceRef}
             className={`dragged-piece piece-sprite sprite-${drag.color}-${drag.piece}`}
@@ -325,7 +333,7 @@ export function ChessBoard({
                 onClick={() => commitMove(pendingPromotion.from, pendingPromotion.to, piece)}
               >
                 <PieceGraphic
-                  theme={theme}
+                  pieceStyle={pieceStyle}
                   color={chess.turn()}
                   piece={piece}
                   className="promotion-piece"
