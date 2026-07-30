@@ -1,2 +1,2 @@
-:HL["/Game_Chessle/_next/static/chunks/166cr744c5~je.css","style"]
-0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"/_not-found","param":null,"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}},"staleTime":300,"buildId":"IyZH57bD_7cJ_wXv1ul7n"}
+:HL["/Game_Chessle/_next/static/chunks/0wpt.1ayq5mk1.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"/_not-found","param":null,"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}},"staleTime":300,"buildId":"gKH36Vf5Xzk7mTt-P45pi"}
