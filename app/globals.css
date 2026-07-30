@@ -451,7 +451,7 @@ a { color: inherit; text-decoration: none; }
 .result-dialog-outcome.is-incorrect { color: var(--danger); }
 .result-dialog h2 { margin: 0; font: 750 clamp(22px, 4vw, 30px)/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.02em; }
 .result-dialog-meta { margin: 10px 0 0; color: #717872; font: 700 12px/1 ui-monospace, monospace; }
-.daily-peer-status {
+.problem-peer-status {
   margin-top: 20px;
   padding: 14px 16px;
   border: 1px solid #dce4de;
@@ -459,14 +459,14 @@ a { color: inherit; text-decoration: none; }
   background: #f5f8f5;
   text-align: left;
 }
-.daily-peer-status > p {
+.problem-peer-status > p {
   margin: 0 0 10px;
   color: var(--forest);
   font: 850 9px/1.2 ui-monospace, monospace;
   letter-spacing: .12em;
 }
-.daily-peer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.daily-peer-grid div {
+.problem-peer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.problem-peer-grid div {
   min-width: 0;
   padding: 9px 10px;
   border-radius: 4px;
@@ -474,10 +474,10 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   gap: 3px;
 }
-.daily-peer-grid strong { color: var(--ink); font-size: 18px; line-height: 1; }
-.daily-peer-grid span { color: #6f7972; font-size: 9px; line-height: 1.35; }
-.daily-peer-status small { display: block; margin-top: 9px; color: #7a837d; font-size: 9px; }
-.daily-peer-message { padding: 8px 0 2px; color: #6f7972; font-size: 11px; line-height: 1.45; }
+.problem-peer-grid strong { color: var(--ink); font-size: 18px; line-height: 1; }
+.problem-peer-grid span { color: #6f7972; font-size: 9px; line-height: 1.35; }
+.problem-peer-status small { display: block; margin-top: 9px; color: #7a837d; font-size: 9px; }
+.problem-peer-message { padding: 8px 0 2px; color: #6f7972; font-size: 11px; line-height: 1.45; }
 .result-dialog-actions { margin-top: 24px; display: flex; justify-content: center; gap: 8px; }
 .result-confetti { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .result-confetti i {

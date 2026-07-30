@@ -19,14 +19,15 @@ interface ClientStorage {
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export interface CompletedDailyGame {
+export interface CompletedGameResult {
   problemId: string;
+  mode: "daily" | "random";
   dateKey: string;
   outcome: "won" | "lost";
   attempts: number;
 }
 
-export interface DailyPeerStats {
+export interface ProblemPeerStats {
   completedPlayers: number;
   solvedPlayers: number;
   solveRate: number;
@@ -72,10 +73,10 @@ function roundToOne(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-export function dailyPeerStatsFromSummary(
+export function problemPeerStatsFromSummary(
   payload: unknown,
-  ownResult: CompletedDailyGame,
-): DailyPeerStats | null {
+  ownResult: CompletedGameResult,
+): ProblemPeerStats | null {
   let value = Array.isArray(payload) ? payload[0] : payload;
   if (typeof value === "string") {
     try {
@@ -86,10 +87,20 @@ export function dailyPeerStatsFromSummary(
   }
   if (!value || typeof value !== "object") return null;
 
-  const dailyProblem = (value as { dailyProblem?: unknown }).dailyProblem;
-  if (!dailyProblem || typeof dailyProblem !== "object") return null;
-  const source = dailyProblem as Record<string, unknown>;
-  if (source.problemId !== ownResult.problemId || source.dateKey !== ownResult.dateKey) return null;
+  const summary = value as { dailyProblem?: unknown; randomProblems?: unknown };
+  const aggregate = ownResult.mode === "daily"
+    ? summary.dailyProblem
+    : Array.isArray(summary.randomProblems)
+      ? summary.randomProblems.find((item) => (
+          item
+          && typeof item === "object"
+          && (item as Record<string, unknown>).problemId === ownResult.problemId
+        ))
+      : null;
+  if (!aggregate || typeof aggregate !== "object") return null;
+  const source = aggregate as Record<string, unknown>;
+  if (source.problemId !== ownResult.problemId) return null;
+  if (ownResult.mode === "daily" && source.dateKey !== ownResult.dateKey) return null;
 
   const completedUsers = asCount(source.completedUsers);
   const solvedUsers = Math.min(completedUsers, asCount(source.solvedUsers));
@@ -137,20 +148,20 @@ async function rpc(
   return text ? JSON.parse(text) as unknown : null;
 }
 
-export async function recordDailyResultAndLoadPeerStats(
-  result: CompletedDailyGame,
+export async function recordGameResultAndLoadPeerStats(
+  result: CompletedGameResult,
   fetcher: FetchLike = fetch,
-): Promise<DailyPeerStats | null> {
+): Promise<ProblemPeerStats | null> {
   const visitorId = loadAnalyticsVisitorId();
   await rpc("record_analytics_game_result", {
     p_visitor_id: visitorId,
     p_problem_id: result.problemId,
-    p_mode: "daily",
+    p_mode: result.mode,
     p_date_key: result.dateKey,
     p_outcome: result.outcome,
     p_attempts: result.attempts,
   }, fetcher);
 
   const summary = await rpc("get_analytics_summary", {}, fetcher);
-  return dailyPeerStatsFromSummary(summary, result);
+  return problemPeerStatsFromSummary(summary, result);
 }

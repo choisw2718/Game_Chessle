@@ -40,8 +40,8 @@ import {
   type PieceStyleId,
 } from "@/lib/game/board-theme";
 import {
-  recordDailyResultAndLoadPeerStats,
-  type DailyPeerStats,
+  recordGameResultAndLoadPeerStats,
+  type ProblemPeerStats,
 } from "@/lib/analytics/client";
 import { findLongestCorrectPrefix } from "@/lib/game/correct-prefix";
 import { getDataset, getEnabledProblems, getProblem, revealProblem } from "@/lib/problems";
@@ -405,15 +405,15 @@ function ResultPanel({
 
 function GameResultDialog({
   game,
-  dailyPeerStatus,
+  peerStatus,
   onClose,
   onRandom,
 }: {
   game: ActiveGame;
-  dailyPeerStatus: {
+  peerStatus: {
     playId: string;
     state: "loading" | "ready" | "unavailable";
-    stats: DailyPeerStats | null;
+    stats: ProblemPeerStats | null;
   } | null;
   onClose: () => void;
   onRandom: () => void;
@@ -439,38 +439,43 @@ function GameResultDialog({
         <p className={`result-dialog-outcome ${won ? "is-correct" : "is-incorrect"}`}>{won ? "Correct" : "Incorrect"}</p>
         <h2 id="game-result-title">{reveal.fullName}</h2>
         <p id="game-result-line" className="result-dialog-meta">{reveal.eco}</p>
-        {game.problem.mode === "daily" && (
-          <section className="daily-peer-status" aria-label="Other players' Daily statistics">
-            <p>OTHER PLAYERS TODAY</p>
-            {(!dailyPeerStatus || dailyPeerStatus.playId !== game.playId || dailyPeerStatus.state === "loading") && (
-              <div className="daily-peer-message" role="status">Loading community stats…</div>
+        <section
+          className="problem-peer-status"
+          aria-label={game.problem.mode === "daily" ? "Other players' Daily statistics" : "Other players' statistics for this Random puzzle"}
+        >
+            <p>{game.problem.mode === "daily" ? "OTHER PLAYERS TODAY" : "OTHER PLAYERS · THIS PUZZLE"}</p>
+            {(!peerStatus || peerStatus.playId !== game.playId || peerStatus.state === "loading") && (
+              <div className="problem-peer-message" role="status">Loading community stats…</div>
             )}
-            {dailyPeerStatus?.playId === game.playId && dailyPeerStatus.state === "unavailable" && (
-              <div className="daily-peer-message">Community stats are temporarily unavailable.</div>
+            {peerStatus?.playId === game.playId && peerStatus.state === "unavailable" && (
+              <div className="problem-peer-message">Community stats are temporarily unavailable.</div>
             )}
-            {dailyPeerStatus?.playId === game.playId && dailyPeerStatus.state === "ready" && dailyPeerStatus.stats && (
-              dailyPeerStatus.stats.completedPlayers ? (
+            {peerStatus?.playId === game.playId && peerStatus.state === "ready" && peerStatus.stats && (
+              peerStatus.stats.completedPlayers ? (
                 <>
-                  <div className="daily-peer-grid">
+                  <div className="problem-peer-grid">
                     <div>
-                      <strong>{dailyPeerStatus.stats.averageAttempts?.toFixed(1) ?? "—"}</strong>
+                      <strong>{peerStatus.stats.averageAttempts?.toFixed(1) ?? "—"}</strong>
                       <span>Avg. tries to solve</span>
                     </div>
                     <div>
-                      <strong>{dailyPeerStatus.stats.solveRate}%</strong>
+                      <strong>{peerStatus.stats.solveRate}%</strong>
                       <span>Solve rate</span>
                     </div>
                   </div>
                   <small>
-                    Based on {dailyPeerStatus.stats.completedPlayers.toLocaleString()} other completed {dailyPeerStatus.stats.completedPlayers === 1 ? "player" : "players"}.
+                    Based on {peerStatus.stats.completedPlayers.toLocaleString()} other completed {peerStatus.stats.completedPlayers === 1 ? "player" : "players"}.
                   </small>
                 </>
               ) : (
-                <div className="daily-peer-message">You are the first completed player today.</div>
+                <div className="problem-peer-message">
+                  {game.problem.mode === "daily"
+                    ? "You are the first completed player today."
+                    : "You are the first completed player for this puzzle."}
+                </div>
               )
             )}
-          </section>
-        )}
+        </section>
         <div className="result-dialog-actions">
           <button className="button button-primary" type="button" onClick={onRandom}>New Random</button>
         </div>
@@ -492,13 +497,13 @@ export function ChessleGame() {
   const [customPieceStyle, setCustomPieceStyle] = useState<PieceStyleId>(DEFAULT_CUSTOM_PIECE_STYLE);
   const [toast, setToast] = useState<string | null>(null);
   const [dismissedResultPlayId, setDismissedResultPlayId] = useState<string | null>(null);
-  const [dailyPeerStatus, setDailyPeerStatus] = useState<{
+  const [peerStatus, setPeerStatus] = useState<{
     playId: string;
     state: "loading" | "ready" | "unavailable";
-    stats: DailyPeerStats | null;
+    stats: ProblemPeerStats | null;
   } | null>(null);
   const skipNextModeLoad = useRef(false);
-  const loadedDailyPeerKey = useRef<string | null>(null);
+  const loadedPeerKey = useRef<string | null>(null);
 
   const startProblem = useCallback(async (targetMode: PublicProblem["mode"], forceNew = false) => {
     setLoading(true);
@@ -563,28 +568,29 @@ export function ChessleGame() {
   }, []);
 
   useEffect(() => {
-    if (!game || game.problem.mode !== "daily" || game.status === "playing") return;
-    const requestKey = `${game.playId}:${game.status}:${game.guesses.length}`;
-    if (loadedDailyPeerKey.current === requestKey) return;
-    loadedDailyPeerKey.current = requestKey;
+    if (!game || game.status === "playing") return;
+    const requestKey = `${game.playId}:${game.problem.mode}:${game.problem.id}:${game.status}:${game.guesses.length}`;
+    if (loadedPeerKey.current === requestKey) return;
+    loadedPeerKey.current = requestKey;
 
     let cancelled = false;
-    setDailyPeerStatus({ playId: game.playId, state: "loading", stats: null });
-    void recordDailyResultAndLoadPeerStats({
+    setPeerStatus({ playId: game.playId, state: "loading", stats: null });
+    void recordGameResultAndLoadPeerStats({
       problemId: game.problem.id,
+      mode: game.problem.mode,
       dateKey: game.problem.dateKey,
       outcome: game.status,
       attempts: game.guesses.length,
     }).then((stats) => {
       if (cancelled) return;
-      setDailyPeerStatus({
+      setPeerStatus({
         playId: game.playId,
         state: stats ? "ready" : "unavailable",
         stats,
       });
     }).catch(() => {
       if (!cancelled) {
-        setDailyPeerStatus({ playId: game.playId, state: "unavailable", stats: null });
+        setPeerStatus({ playId: game.playId, state: "unavailable", stats: null });
       }
     });
 
@@ -835,7 +841,7 @@ export function ChessleGame() {
       {game && complete && game.reveal && dismissedResultPlayId !== game.playId && (
         <GameResultDialog
           game={game}
-          dailyPeerStatus={dailyPeerStatus}
+          peerStatus={peerStatus}
           onClose={() => setDismissedResultPlayId(game.playId)}
           onRandom={startRandomProblem}
         />
