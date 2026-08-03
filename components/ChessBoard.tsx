@@ -10,7 +10,12 @@ import {
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { moveToUci, replayUci } from "@/lib/chess/notation";
 import {
-  customBoardCssVariables,
+  boardAppearanceCssVariables,
+  boardThemeUsesImage,
+  getPieceStyle,
+  pieceAssetPath,
+  pieceSpriteCssVariables,
+  resolvePieceStyle,
   type BoardThemeId,
   type CustomBoardColors,
   type PieceStyleId,
@@ -28,10 +33,6 @@ const PIECE_NAMES: Record<PieceSymbol, string> = {
 };
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-function pieceAsset(color: Color, piece: PieceSymbol) {
-  return `${BASE_PATH}/pieces/${color}${piece.toUpperCase()}.svg`;
-}
-
 function PieceGraphic({
   pieceStyle,
   color,
@@ -43,11 +44,13 @@ function PieceGraphic({
   piece: PieceSymbol;
   className: string;
 }) {
-  if (pieceStyle === "tournament") {
+  const assetPath = pieceAssetPath(pieceStyle, color, piece, BASE_PATH);
+  if (!assetPath) {
     return (
       <span
-        className={`${className} piece-sprite sprite-${color}-${piece}`}
+        className={`${className} piece-sprite`}
         aria-hidden="true"
+        style={pieceSpriteCssVariables(pieceStyle, color, piece) as CSSProperties}
       />
     );
   }
@@ -55,7 +58,7 @@ function PieceGraphic({
   return (
     <img
       className={className}
-      src={pieceAsset(color, piece)}
+      src={assetPath}
       alt=""
       aria-hidden="true"
       draggable={false}
@@ -245,19 +248,19 @@ export function ChessBoard({
     else setSelected(null);
   }
 
-  const boardStyle = {
-    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
-    ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
-  } as CSSProperties;
-  const pieceStyle: PieceStyleId = theme === "red-tournament"
-    ? "tournament"
-    : theme === "custom"
-      ? customPieceStyle
-      : "classic";
+  const boardStyle = boardAppearanceCssVariables(
+    theme,
+    customColors,
+    customPieceStyle,
+    BASE_PATH,
+  ) as CSSProperties;
+  const pieceStyle = resolvePieceStyle(theme, customPieceStyle);
+  const pieceDefinition = getPieceStyle(pieceStyle);
+  const hasBoardImage = boardThemeUsesImage(theme);
 
   return (
     <div
-      className={`board-wrap board-theme-${theme} piece-style-${pieceStyle}${compact ? " board-wrap--compact" : ""}`}
+      className={`board-wrap board-theme-${theme}${hasBoardImage ? " has-board-image" : ""}${compact ? " board-wrap--compact" : ""}`}
       style={boardStyle}
     >
       <div className={`chess-board${interactive ? " is-interactive" : ""}${drag?.active ? " is-dragging" : ""}`} role="grid" aria-label={label} data-testid="chess-board">
@@ -302,18 +305,21 @@ export function ChessBoard({
         )}
       </div>
       {drag?.active && (
-        pieceStyle === "tournament" ? (
+        pieceDefinition.renderMode === "sprite" ? (
           <span
             ref={draggedPieceRef}
-            className={`dragged-piece piece-sprite sprite-${drag.color}-${drag.piece}`}
+            className="dragged-piece piece-sprite"
             aria-hidden="true"
-            style={{ transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)` }}
+            style={{
+              ...pieceSpriteCssVariables(pieceStyle, drag.color, drag.piece),
+              transform: `translate3d(${drag.clientX}px, ${drag.clientY}px, 0) translate(-50%, -50%)`,
+            } as CSSProperties}
           />
         ) : (
           <img
             ref={(node) => { draggedPieceRef.current = node; }}
             className="dragged-piece"
-            src={pieceAsset(drag.color, drag.piece)}
+            src={pieceAssetPath(pieceStyle, drag.color, drag.piece, BASE_PATH) ?? ""}
             alt=""
             aria-hidden="true"
             draggable={false}

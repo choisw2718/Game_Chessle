@@ -112,9 +112,13 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  background-image: var(--board-image, none);
+  background-position: center;
+  background-size: 100% 100%;
 }
 .theme-trigger-swatch i:nth-child(1), .theme-trigger-swatch i:nth-child(4) { background: var(--board-light); }
 .theme-trigger-swatch i:nth-child(2), .theme-trigger-swatch i:nth-child(3) { background: var(--board-dark); }
+.theme-trigger-swatch.has-board-image i { background: transparent; }
 .mode-chip { padding: 5px 8px; border-radius: 4px; background: var(--forest); color: #f7f0dc; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
 .board-stage { grid-area: board; min-width: 0; }
 .attempt-column {
@@ -135,41 +139,29 @@ a { color: inherit; text-decoration: none; }
   --board-coord-dark: #e8dfc8;
   --board-radius: 4px;
   --board-shadow: 0 8px 20px rgb(14 43 32 / 18%);
-}
-.board-theme-blue-classic {
-  --board-light: #edf0ef;
-  --board-dark: #7d96c4;
-  --board-frame: #526b9b;
-  --board-coord-light: #52698d;
-  --board-coord-dark: #f5f7fa;
-  --board-radius: 3px;
-  --board-shadow: 0 8px 22px rgb(42 61 96 / 24%);
-}
-.board-theme-red-tournament {
-  --board-light: #ddb9b6;
-  --board-dark: #af1730;
-  --board-frame: #b2263b;
-  --board-coord-light: #9f2435;
-  --board-coord-dark: #f6d6d2;
-  --board-radius: 20px;
-  --board-shadow: 0 8px 0 #861325, 0 15px 28px rgb(91 13 31 / 24%);
-}
-.board-theme-custom {
-  --board-radius: 7px;
-  --board-shadow: 0 9px 23px rgb(20 28 24 / 22%);
+  --board-image: none;
+  --board-border-width: 8px;
+  --board-compact-border-width: 6px;
+  --piece-scale: 88%;
+  --piece-filter: none;
+  --piece-sprite-size: 600% 200%;
 }
 .board-wrap { width: 100%; position: relative; }
 .chess-board {
   width: 100%;
   aspect-ratio: 1;
-  border: 8px solid var(--board-frame);
+  border: var(--board-border-width) solid var(--board-frame);
   border-radius: var(--board-radius);
   overflow: hidden;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, minmax(0, 1fr));
   box-shadow: var(--board-shadow);
-  background: var(--board-frame);
+  background-color: var(--board-frame);
+  background-image: var(--board-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 .board-square {
   position: relative;
@@ -194,37 +186,28 @@ a { color: inherit; text-decoration: none; }
 .chess-board.is-dragging .board-square { cursor: grabbing; }
 .board-square.is-light { background: var(--board-light); }
 .board-square.is-dark { background: var(--board-dark); }
+.has-board-image .board-square.is-light,
+.has-board-image .board-square.is-dark { background: transparent; }
 .board-square.is-last::after { content: ""; position: absolute; inset: 0; background: rgb(218 168 58 / 32%); }
 .board-square.is-selected::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 4px var(--gold); z-index: 1; }
 .piece {
   position: relative;
   z-index: 3;
-  width: 88%;
-  height: 88%;
+  width: var(--piece-scale);
+  height: var(--piece-scale);
   object-fit: contain;
+  filter: var(--piece-filter);
   user-select: none;
   pointer-events: none;
 }
 .piece.is-drag-source { opacity: .2; }
-.board-theme-blue-classic .piece { width: 91%; height: 91%; filter: drop-shadow(0 1px 0 rgb(255 255 255 / 30%)); }
-.piece-style-tournament .piece { width: 96%; height: 96%; }
 .piece-sprite {
   display: block;
   background-image: var(--piece-sprite-url);
   background-repeat: no-repeat;
-  background-size: 600% 200%;
+  background-size: var(--piece-sprite-size);
   background-position: var(--sprite-x) var(--sprite-y);
 }
-/* The reference artwork has uneven horizontal padding. These calibrated crop
-   positions keep neighboring silhouettes from bleeding into each piece. */
-.sprite-w-k, .sprite-b-k { --sprite-x: 4.7%; }
-.sprite-w-q, .sprite-b-q { --sprite-x: 24.5%; }
-.sprite-w-b, .sprite-b-b { --sprite-x: 42.1%; }
-.sprite-w-n, .sprite-b-n { --sprite-x: 59%; }
-.sprite-w-r, .sprite-b-r { --sprite-x: 77.8%; }
-.sprite-w-p, .sprite-b-p { --sprite-x: 95.9%; }
-.sprite-w-k, .sprite-w-q, .sprite-w-b, .sprite-w-n, .sprite-w-r, .sprite-w-p { --sprite-y: 0%; }
-.sprite-b-k, .sprite-b-q, .sprite-b-b, .sprite-b-n, .sprite-b-r, .sprite-b-p { --sprite-y: 100%; }
 .dragged-piece {
   position: fixed;
   z-index: 100;
@@ -248,9 +231,7 @@ a { color: inherit; text-decoration: none; }
 .legal-dot { width: 22%; height: 22%; border-radius: 50%; background: rgb(18 55 41 / 45%); }
 .legal-capture { inset: 6%; border: 4px solid rgb(18 55 41 / 52%); border-radius: 50%; }
 .board-wrap--compact { max-width: 390px; }
-.board-wrap--compact .chess-board { border-width: 6px; box-shadow: 0 6px 16px rgb(14 43 32 / 13%); }
-.board-theme-red-tournament .chess-board { border-width: 10px; }
-.board-wrap--compact.board-theme-red-tournament .chess-board { border-width: 7px; }
+.board-wrap--compact .chess-board { border-width: var(--board-compact-border-width); box-shadow: 0 6px 16px rgb(14 43 32 / 13%); }
 .promotion-picker {
   position: absolute;
   z-index: 10;
@@ -369,6 +350,75 @@ a { color: inherit; text-decoration: none; }
 @keyframes bob { 50% { transform: translateY(-7px); } }
 .error-banner { max-width: 900px; margin: 0 auto 24px; padding: 13px 16px; border: 1px solid #d3a99f; border-radius: 5px; background: #f8e4df; color: #743c31; font-size: 12px; }
 .error-banner button { float: right; border: 0; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
+
+.site-footer {
+  margin-top: clamp(64px, 9vw, 120px);
+  padding: 32px clamp(20px, 5vw, 72px) 38px;
+  border-top: 1px solid rgb(255 255 255 / 9%);
+  background: var(--forest-deep);
+  color: #edf2eb;
+}
+.site-footer-heading {
+  max-width: 1360px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.site-footer-heading > div { display: grid; gap: 8px; }
+.site-footer-heading strong { font-size: 14px; letter-spacing: .18em; }
+.site-footer-heading span, .site-footer-heading small { color: #aebdb4; font-size: 9px; }
+.site-footer-heading small { white-space: nowrap; }
+.site-footer-disclosures {
+  max-width: 1360px;
+  margin: 0 auto;
+  border-top: 1px solid rgb(255 255 255 / 13%);
+}
+.site-footer-disclosures details { border-bottom: 1px solid rgb(255 255 255 / 13%); }
+.site-footer-disclosures summary {
+  min-height: 48px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #d9e3dc;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  list-style: none;
+  cursor: pointer;
+}
+.site-footer-disclosures summary::-webkit-details-marker { display: none; }
+.site-footer-disclosures summary::after {
+  content: "+";
+  color: #93aa9c;
+  font: 400 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.site-footer-disclosures details[open] summary::after { content: "−"; }
+.site-footer-disclosures summary:hover { color: #fffdf6; }
+.site-footer-detail {
+  max-width: 830px;
+  padding: 0 2px 28px;
+  color: #bdcbc2;
+}
+.site-footer-detail h2 { margin: 0 0 12px; color: #f4f7f3; font-size: 15px; }
+.site-footer-detail p { margin: 0 0 12px; font-size: 11px; line-height: 1.75; }
+.site-footer-detail a { color: #f0cf7a; text-decoration: underline; text-underline-offset: 2px; }
+.site-footer-detail a:hover { color: #ffe09a; }
+.site-footer-contact {
+  display: inline-flex;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 4px;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 850;
+  text-decoration: none !important;
+}
 
 .result-panel {
   max-width: 1240px;
@@ -554,9 +604,15 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   box-shadow: 0 5px 12px rgb(26 31 28 / 14%);
+  background-color: var(--board-frame);
+  background-image: var(--board-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 .theme-preview-square.is-light { background: var(--board-light); }
 .theme-preview-square.is-dark { background: var(--board-dark); }
+.theme-preview.has-board-image .theme-preview-square { background: transparent; }
 .theme-preview-piece {
   position: absolute;
   z-index: 2;
@@ -567,9 +623,7 @@ a { color: inherit; text-decoration: none; }
 }
 .theme-preview-piece.preview-white { left: 25%; bottom: 0; }
 .theme-preview-piece.preview-black { right: 25%; top: 0; }
-.preview-classic-white, .preview-classic-black { background: center / contain no-repeat; }
-.preview-classic-white { background-image: var(--preview-white-url); }
-.preview-classic-black { background-image: var(--preview-black-url); }
+.piece-file-preview { background-position: center; background-repeat: no-repeat; background-size: contain; }
 .theme-option-copy { min-width: 0; display: grid; gap: 5px; }
 .theme-option-copy strong { font-size: 13px; }
 .theme-option-copy small { color: #6c766f; font-size: 9px; line-height: 1.4; }
@@ -649,7 +703,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
 }
 .piece-style-sample-piece { display: block; width: 34px; height: 34px; }
-.piece-style-sample-piece.preview-classic-white { background-position: center; background-size: contain; background-repeat: no-repeat; }
+.piece-style-sample-piece.piece-file-preview { background-position: center; background-size: contain; background-repeat: no-repeat; }
 .custom-theme-actions { display: grid; grid-template-columns: 1fr 1.25fr; gap: 7px; }
 .custom-theme-actions button {
   min-height: 34px;
@@ -827,6 +881,11 @@ a { color: inherit; text-decoration: none; }
   .problem-row { padding: 8px; grid-template-columns: 38px minmax(130px, 1fr) 38px; }
   .master-count { font-size: 8px; }
   .back-link { padding: 8px; font-size: 9px; }
+  .site-footer { margin-top: 52px; padding: 27px 18px 30px; }
+  .site-footer-heading { align-items: start; }
+  .site-footer-heading span { line-height: 1.5; }
+  .site-footer-detail { padding-bottom: 24px; }
+  .site-footer-detail p { font-size: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

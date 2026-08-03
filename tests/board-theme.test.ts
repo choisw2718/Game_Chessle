@@ -7,10 +7,16 @@ import {
   DEFAULT_CUSTOM_BOARD_COLORS,
   DEFAULT_CUSTOM_PIECE_STYLE,
   DEFAULT_BOARD_THEME,
+  boardAppearanceCssVariables,
+  boardThemeUsesImage,
   customBoardCssVariables,
+  getBoardDesign,
   loadCustomBoardColors,
   loadCustomPieceStyle,
   loadBoardTheme,
+  pieceAssetPath,
+  pieceSpriteCssVariables,
+  resolvePieceStyle,
   saveCustomBoardColors,
   saveCustomPieceStyle,
   saveBoardTheme,
@@ -39,6 +45,39 @@ test("keeps the selected board and piece set on this device", () => {
 
   assert.equal(saveBoardTheme("red-tournament", storage), true);
   assert.equal(loadBoardTheme(storage), "red-tournament");
+});
+
+test("loads an image board from public/boards through the central catalog", () => {
+  const design = getBoardDesign("red-tournament");
+  const variables = boardAppearanceCssVariables(
+    "red-tournament",
+    DEFAULT_CUSTOM_BOARD_COLORS,
+    DEFAULT_CUSTOM_PIECE_STYLE,
+    "/Game_Chessle",
+  );
+
+  assert.equal(design.board.image, "/boards/red-tournament.svg");
+  assert.equal(boardThemeUsesImage("red-tournament"), true);
+  assert.equal(
+    variables["--board-image"],
+    'url("/Game_Chessle/boards/red-tournament.svg")',
+  );
+  assert.equal(variables["--board-border-width"], "10px");
+});
+
+test("resolves individual files and sprite positions from the piece catalog", () => {
+  assert.equal(resolvePieceStyle("blue-classic"), "classic");
+  assert.equal(resolvePieceStyle("red-tournament"), "tournament");
+  assert.equal(resolvePieceStyle("custom", "tournament"), "tournament");
+  assert.equal(
+    pieceAssetPath("classic", "w", "n", "/Game_Chessle"),
+    "/Game_Chessle/pieces/wN.svg",
+  );
+  assert.equal(pieceAssetPath("tournament", "w", "n"), null);
+  assert.deepEqual(pieceSpriteCssVariables("tournament", "b", "k"), {
+    "--sprite-x": "4.7%",
+    "--sprite-y": "100%",
+  });
 });
 
 test("keeps two different custom checker colors on this device", () => {

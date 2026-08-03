@@ -23,20 +23,29 @@ import {
   type StoredGuess,
 } from "@/lib/game/storage";
 import {
-  BOARD_THEME_OPTIONS,
+  BOARD_DESIGNS,
   DEFAULT_CUSTOM_BOARD_COLORS,
   DEFAULT_CUSTOM_PIECE_STYLE,
   DEFAULT_BOARD_THEME,
-  customBoardCssVariables,
+  PIECE_STYLE_OPTIONS,
+  boardAppearanceCssVariables,
+  boardThemeUsesImage,
+  getBoardDesign,
   isCustomBoardColors,
   loadCustomBoardColors,
   loadCustomPieceStyle,
   loadBoardTheme,
+  pieceAssetPath,
+  pieceSpriteCssVariables,
+  pieceStyleCssVariables,
+  resolvePieceStyle,
   saveCustomBoardColors,
   saveCustomPieceStyle,
   saveBoardTheme,
   type BoardThemeId,
   type CustomBoardColors,
+  type PieceColor,
+  type PieceKind,
   type PieceStyleId,
 } from "@/lib/game/board-theme";
 import {
@@ -47,6 +56,7 @@ import { findLongestCorrectPrefix } from "@/lib/game/correct-prefix";
 import { getDataset, getEnabledProblems, getProblem, revealProblem } from "@/lib/problems";
 import type { PublicProblem, RevealedProblem } from "@/lib/types";
 import { ChessBoard } from "./ChessBoard";
+import { SiteFooter } from "./SiteFooter";
 import gridStyles from "./GuessGrid.module.css";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -169,55 +179,83 @@ function ThemePreview({
   customColors?: CustomBoardColors;
   pieceStyle?: PieceStyleId;
 }) {
-  const previewStyle = {
-    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
-    "--preview-white-url": `url("${BASE_PATH}/pieces/wN.svg")`,
-    "--preview-black-url": `url("${BASE_PATH}/pieces/bK.svg")`,
-    ...(theme === "custom" && customColors ? customBoardCssVariables(customColors) : {}),
-  } as CSSProperties;
-  const previewPieceStyle: PieceStyleId = theme === "red-tournament"
-    ? "tournament"
-    : theme === "custom"
-      ? pieceStyle ?? DEFAULT_CUSTOM_PIECE_STYLE
-      : "classic";
+  const previewPieceStyle = resolvePieceStyle(
+    theme,
+    pieceStyle ?? DEFAULT_CUSTOM_PIECE_STYLE,
+  );
+  const previewStyle = boardAppearanceCssVariables(
+    theme,
+    customColors,
+    previewPieceStyle,
+    BASE_PATH,
+  ) as CSSProperties;
 
   return (
-    <span className={`theme-preview board-theme-${theme}`} style={previewStyle} aria-hidden="true">
+    <span
+      className={`theme-preview board-theme-${theme}${boardThemeUsesImage(theme) ? " has-board-image" : ""}`}
+      style={previewStyle}
+      aria-hidden="true"
+    >
       {Array.from({ length: 16 }, (_, index) => (
         <i
           className={`theme-preview-square ${(Math.floor(index / 4) + index) % 2 === 0 ? "is-light" : "is-dark"}`}
           key={index}
         />
       ))}
-      {previewPieceStyle === "tournament" ? (
-        <>
-          <span className="theme-preview-piece preview-white piece-sprite sprite-w-n" />
-          <span className="theme-preview-piece preview-black piece-sprite sprite-b-k" />
-        </>
-      ) : (
-        <>
-          <span className="theme-preview-piece preview-white preview-classic-white" />
-          <span className="theme-preview-piece preview-black preview-classic-black" />
-        </>
-      )}
+      <DesignPiecePreview
+        pieceStyle={previewPieceStyle}
+        color="w"
+        piece="n"
+        className="theme-preview-piece preview-white"
+      />
+      <DesignPiecePreview
+        pieceStyle={previewPieceStyle}
+        color="b"
+        piece="k"
+        className="theme-preview-piece preview-black"
+      />
     </span>
   );
 }
 
+function DesignPiecePreview({
+  pieceStyle,
+  color,
+  piece,
+  className,
+}: {
+  pieceStyle: PieceStyleId;
+  color: PieceColor;
+  piece: PieceKind;
+  className: string;
+}) {
+  const assetPath = pieceAssetPath(pieceStyle, color, piece, BASE_PATH);
+  if (assetPath) {
+    return (
+      <span
+        className={`${className} piece-file-preview`}
+        style={{ backgroundImage: `url("${assetPath}")` }}
+      />
+    );
+  }
+  return (
+    <span
+      className={`${className} piece-sprite`}
+      style={pieceSpriteCssVariables(pieceStyle, color, piece) as CSSProperties}
+    />
+  );
+}
+
 function PieceStyleSample({ pieceStyle }: { pieceStyle: PieceStyleId }) {
-  const sampleStyle = {
-    "--piece-sprite-url": `url("${BASE_PATH}/pieces/themes/red-tournament.png")`,
-    "--preview-white-url": `url("${BASE_PATH}/pieces/wN.svg")`,
-  } as CSSProperties;
+  const sampleStyle = pieceStyleCssVariables(pieceStyle, BASE_PATH) as CSSProperties;
 
   return (
     <span className="piece-style-sample" style={sampleStyle} aria-hidden="true">
-      <span
-        className={`piece-style-sample-piece ${
-          pieceStyle === "tournament"
-            ? "piece-sprite sprite-w-n"
-            : "preview-classic-white"
-        }`}
+      <DesignPiecePreview
+        pieceStyle={pieceStyle}
+        color="w"
+        piece="n"
+        className="piece-style-sample-piece"
       />
     </span>
   );
@@ -258,7 +296,7 @@ function BoardThemeDialog({
         <h2 id="theme-title">Board &amp; Pieces</h2>
         <p className="theme-intro">Choose a complete board-and-piece set. Your choice stays on this device.</p>
         <div className="theme-options">
-          {BOARD_THEME_OPTIONS.map((theme) => {
+          {BOARD_DESIGNS.map((theme) => {
             const active = selected === theme.id;
             return (
               <button
@@ -315,10 +353,7 @@ function BoardThemeDialog({
             <fieldset className="custom-piece-picker">
               <legend>Piece design</legend>
               <div>
-                {([
-                  { id: "classic", name: "Classic", description: "Crisp outline pieces" },
-                  { id: "tournament", name: "Tournament", description: "Bold retro pieces" },
-                ] as const).map((option) => (
+                {PIECE_STYLE_OPTIONS.map((option) => (
                   <button
                     className={draftPieceStyle === option.id ? "is-selected" : ""}
                     type="button"
@@ -609,7 +644,7 @@ export function ChessleGame() {
     setBoardTheme(theme);
     const saved = saveBoardTheme(theme);
     setShowThemePicker(false);
-    const name = BOARD_THEME_OPTIONS.find((option) => option.id === theme)?.name ?? "Board style";
+    const name = getBoardDesign(theme).name;
     setToast(saved ? `${name} saved on this device` : `${name} selected for this session`);
     window.setTimeout(() => setToast(null), 1800);
   }
@@ -754,8 +789,13 @@ export function ChessleGame() {
                   aria-haspopup="dialog"
                 >
                   <span
-                    className={`theme-trigger-swatch board-theme-${boardTheme}`}
-                    style={boardTheme === "custom" ? customBoardCssVariables(customBoardColors) as CSSProperties : undefined}
+                    className={`theme-trigger-swatch board-theme-${boardTheme}${boardThemeUsesImage(boardTheme) ? " has-board-image" : ""}`}
+                    style={boardAppearanceCssVariables(
+                      boardTheme,
+                      customBoardColors,
+                      customPieceStyle,
+                      BASE_PATH,
+                    ) as CSSProperties}
                     aria-hidden="true"
                   >
                     <i /><i /><i /><i />
@@ -847,6 +887,7 @@ export function ChessleGame() {
         />
       )}
       {toast && <div className="toast" role="status">{toast}</div>}
+      <SiteFooter />
     </main>
   );
 }
